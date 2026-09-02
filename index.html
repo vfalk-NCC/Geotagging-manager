@@ -78,7 +78,7 @@
   #lightbox .lbActions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   #lightbox .lbActions button{font-size:11px;padding:5px 9px;}
 
-  #debugLog{font-size:10.5px;color:var(--text-muted);padding:6px 12px;border-top:1px solid var(--border);max-height:90px;overflow-y:auto;white-space:pre-wrap;display:none;}
+  #debugLog{font-size:10.5px;color:var(--text-muted);padding:6px 12px;border-top:1px solid var(--border);max-height:200px;overflow-y:auto;white-space:pre-wrap;display:none;}
   #debugLog.open{display:block;}
 </style>
 </head>
@@ -93,6 +93,7 @@
     <button class="primary" id="btnAddPhotos">+ Ladda upp foton</button>
     <button class="ghost" id="btnCrsToggle">🌐 Koordinatsystem</button>
     <button class="ghost" id="btnDebugToggle">🐞 Rådata</button>
+    <button class="ghost" id="btnDebugCopy">📋 Kopiera rådata</button>
   </div>
 
   <div id="crsPanel">
@@ -186,6 +187,24 @@
     debugOn = !debugOn;
     debugLogEl.classList.toggle("open", debugOn);
     el("btnDebugToggle").classList.toggle("active", debugOn);
+  };
+  el("btnDebugCopy").onclick = async () => {
+    const text = debugLogEl.textContent || "(loggen är tom — gör en åtgärd med 🐞 Rådata påslaget först)";
+    try {
+      await navigator.clipboard.writeText(text);
+      el("btnDebugCopy").textContent = "✅ Kopierat!";
+    } catch(err){
+      // Clipboard API can be blocked inside some iframes — fall back to a
+      // selectable textarea the user can copy manually.
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;top:10%;left:5%;width:90%;height:70%;z-index:2000;font-size:11px;";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      el("btnDebugCopy").textContent = "Markera & Ctrl+C, stäng sen rutan";
+      ta.addEventListener("blur", () => ta.remove(), { once:true });
+    }
+    setTimeout(() => { el("btnDebugCopy").textContent = "📋 Kopiera rådata"; }, 2500);
   };
 
   // ---------------- CRS panel ----------------
