@@ -299,52 +299,47 @@
   // documented publicly, so a couple of plausible shapes are tried. Falls
   // back to a small colored point marker (via the Markup API) if addIcon
   // is rejected, so a photo is always visible somehow.
+  // Places a photo marker using proven, reliable native markup primitives
+  // (line-markup cross + text label) instead of the flaky addIcon path.
+  // Clicking a photo marker in the 3D view isn't reliably distinguishable
+  // from other picks, so opening the full photo still happens via the list
+  // panel below ("🔍 Visa") — the 3D marker is a visual locator.
   async function placePhotoIcon(photo){
     if(!API) return { iconId: null, markupIds: [] };
-    const pos = { x: photo.projectX, y: photo.projectY, z: photo.projectZ };
-    // Testing has been inconclusive on the "InvalidStateError" — it may be
-    // flaky/transient rather than caused by position units or image format,
-    // since identical image data both failed and succeeded across tests.
-    // So: try the SAME well-formed call (meters, matching setCamera's
-    // convention) up to 3 times with a short delay before trying anything
-    // else, to separate "flaky" from "genuinely wrong".
-    const primary = { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: pos, tooltip: photo.fileName };
-    for(let i = 1; i <= 3; i++){
-      try {
-        const res = await API.viewer.addIcon([primary]);
-        log(`addIcon lyckades (försök ${i}/3, meter-position):`, JSON.stringify(pos), res);
-        return { iconId: primary.id, markupIds: [] };
-      } catch(err){
-        log(`addIcon misslyckades (försök ${i}/3, meter-position):`, err.message||err);
-        if(i < 3) await new Promise(r => setTimeout(r, 400));
-      }
-    }
-    const attempts = [
-      { id: "photo_"+photo.id+"_b", url: photo.thumbnailDataUrl, position: { x: pos.x*1000, y: pos.y*1000, z: pos.z*1000 }, tooltip: photo.fileName },
-      { id: "photo_"+photo.id+"_c", imageUrl: photo.thumbnailDataUrl, position: pos, label: photo.fileName }
+    const c = { xMM: photo.projectX*1000, yMM: photo.projectY*1000, zMM: photo.projectZ*1000 };
+    const size = 350; // mm, half-width of the cross
+    const color = { r:37, g:99, b:235, a:255 };
+    const edgeDefs = [
+      [{xMM:c.xMM-size,yMM:c.yMM,zMM:c.zMM},{xMM:c.xMM+size,yMM:c.yMM,zMM:c.zMM}],
+      [{xMM:c.xMM,yMM:c.yMM-size,zMM:c.zMM},{xMM:c.xMM,yMM:c.yMM+size,zMM:c.zMM}],
+      [{xMM:c.xMM,yMM:c.yMM,zMM:c.zMM-size},{xMM:c.xMM,yMM:c.yMM,zMM:c.zMM+size}]
     ];
-    for(const attempt of attempts){
+    const markupIds = await drawEdgesBatch(photo.modelId, edgeDefs, color);
+
+    // Bonus: a short horizontal arrow showing the camera's bearing, if known
+    // (0°=north/+Y, 90°=east/+X — standard SWEREF/UTM convention).
+    if(photo.cameraDirection != null){
+      const rad = photo.cameraDirection * Math.PI/180;
+      const len = 800; // mm
+      const tip = { xMM: c.xMM + Math.sin(rad)*len, yMM: c.yMM + Math.cos(rad)*len, zMM: c.zMM };
       try {
-        const res = await API.viewer.addIcon([attempt]);
-        log("addIcon lyckades med form:", Object.keys(attempt), JSON.stringify(attempt.position), res);
-        return { iconId: attempt.id, markupIds: [] };
-      } catch(err){
-        log("addIcon-försök misslyckades:", Object.keys(attempt), err.message||err);
-      }
+        const added = await API.markup.addArrowMarkups([{ color, start: makePick(photo.modelId,c.xMM,c.yMM,c.zMM), end: makePick(photo.modelId,tip.xMM,tip.yMM,tip.zMM) }]);
+        if(added && added[0] && added[0].id) markupIds.push(added[0].id);
+      } catch(err){ log("Kamerariktnings-pil misslyckades (mindre viktigt):", err.message||err); }
     }
-    // Fallback: small point + camera-direction arrow via markup lines
-    log("addIcon stöds inte i denna form — faller tillbaka på linjemarkör.");
-    const c = { xMM: pos.x*1000, yMM: pos.y*1000, zMM: pos.z*1000 };
-    const size = 0.3;
-    const cross = [
-      [{xMM:c.xMM-size*1000,yMM:c.yMM,zMM:c.zMM},{xMM:c.xMM+size*1000,yMM:c.yMM,zMM:c.zMM}],
-      [{xMM:c.xMM,yMM:c.yMM-size*1000,zMM:c.zMM},{xMM:c.xMM,yMM:c.yMM+size*1000,zMM:c.zMM}],
-      [{xMM:c.xMM,yMM:c.yMM,zMM:c.zMM-size*1000},{xMM:c.xMM,yMM:c.yMM,zMM:c.zMM+size*1000}]
-    ];
-    const markupIds = await drawEdgesBatch(photo.modelId, cross, hexToRgba("#2563eb"));
+
+    // Text label with the filename, floating just above the cross.
+    try {
+      const added = await API.markup.addTextMarkup([{
+        color,
+        start: makePick(photo.modelId, c.xMM, c.yMM, c.zMM + 500),
+        text: "📷 " + photo.fileName
+      }]);
+      if(added && added[0] && added[0].id) markupIds.push(added[0].id);
+    } catch(err){ log("Textetikett misslyckades (mindre viktigt):", err.message||err); }
+
     return { iconId: null, markupIds };
   }
-
   async function removePhotoMarker(photo){
     if(photo.iconId && API && API.viewer.removeIcons){
       try { await API.viewer.removeIcons([photo.iconId]); }

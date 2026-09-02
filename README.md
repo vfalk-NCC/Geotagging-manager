@@ -42,6 +42,26 @@ Verktyget flaggar automatiskt när:
 
 Varningarna visas i den förstorade vyn för varje foto.
 
+## Foto-markörer i 3D-vyn
+
+Efter mycket testande visade sig `viewer.addIcon()` vara **opålitlig** —
+samma anrop med identiska parametrar kunde både lyckas och misslyckas
+(`InvalidStateError: source image could not be decoded`) mellan körningar,
+och även när anropet "lyckades" syntes ingen markör. Istället används nu
+samma beprövade tekniker som redan fungerar väl i de andra tilläggen:
+
+- En liten **treaxlig kryssmarkering** (linjemarkeringar) på fotots position.
+- En **textetikett** ("📷 filnamn") som flyter strax ovanför.
+- Om kamerariktning finns i EXIF: en kort **pil** som visar riktningen
+  fotot togs mot (0° = norr, standard SWEREF/UTM-konvention).
+
+**Att klicka på markören i 3D-vyn öppnar inte fotot** — till skillnad från
+den ursprungliga idén med `addIcon` + `onIconPicked` går det inte att
+tillförlitligt särskilja klick på en linje-/textmarkering från andra klick
+i vyn. Markören är alltså en **visuell platsangivelse**; öppna det
+förstorade fotot via **"🔍 Visa"** i listan längst ner istället — det
+fungerar garanterat.
+
 ## Installation
 
 Samma mönster som övriga tillägg: ladda upp `index.html` + `manifest.json`
@@ -55,15 +75,10 @@ Capabilities → Add Custom**.
   säkra, verifierade delen** av detta tillägg — SWEREF99-zonernas
   proj4-parametrar är stabila, publikt dokumenterade värden från
   Lantmäteriet, inte en gissning mot Trimbles API.
-- **`viewer.addIcon()` för foto-markörer.** Bekräftat via test: fältet
-  heter **`url`**, och det *kan* vara en `data:`-URI — men bara om bilden är
-  ett **raster-format (JPEG/PNG)**. Ett SVG-försök gav samma
-  `InvalidStateError: source image could not be decoded` som vi först
-  misstänkte berodde på data-URI:er i sig. Den faktiska foto-miniatyren
-  (JPEG) används alltså direkt som markörbild.
-- **`viewer.onIconPicked` för klick-i-3D-vyn är också obeprövat.** Fungerar
-  det inte, använd "🔍 Visa"-knappen i listan istället — den fungerar
-  garanterat.
+- **Foto-markörer i 3D-vyn ritas nu med beprövade linje-/textmarkeringar**
+  (samma teknik som kommentar- och mätverktygen) istället för `addIcon`,
+  efter att den senare visat sig opålitlig i praktiska tester. Se avsnittet
+  "Foto-markörer i 3D-vyn" ovan för detaljer.
 - **Ingen persistent lagring ännu.** Precis som de andra tilläggen är detta
   just nu session-only (foton och markörer försvinner vid omladdning).
   Eftersom foto-loggen rimligen ska bestå över tid är nästa naturliga steg
