@@ -55,14 +55,16 @@ Capabilities → Add Custom**.
   säkra, verifierade delen** av detta tillägg — SWEREF99-zonernas
   proj4-parametrar är stabila, publikt dokumenterade värden från
   Lantmäteriet, inte en gissning mot Trimbles API.
-- **`viewer.addIcon()` för foto-markörer är experimentellt.** Den exakta
-  strukturen för `IconAttributes` (fältnamn för bild-URL, position,
-  storlek) är inte fullt dokumenterad publikt. Koden provar tre rimliga
-  varianter i tur och ordning; misslyckas alla faller den tillbaka på ett
-  litet blått kryss (linjemarkering) istället, så ett foto alltid syns på
-  något sätt. Kolla "🐞 Rådata" för att se vilken form som faktiskt
-  fungerade (eller inte) i din miljö — justera sedan `placePhotoIcon()`
-  utifrån det.
+- **`viewer.addIcon()` för foto-markörer.** Vi har nu bekräftat via test att
+  fältet heter **`url`** (inte `imageUrl`/`iconUrl`) — men det måste peka på
+  en **riktig, hämtningsbar bildadress**, inte en inbäddad `data:`-URI (det
+  gav `InvalidStateError: source image could not be decoded`). Därför
+  används en statisk ikonfil (`camera-pin.svg`, medföljer i detta repo) som
+  markörbild istället för det faktiska fotot — markören visar en generisk
+  kamera-pin, men ett klick öppnar ändå det riktiga fotot (via
+  `viewer.onIconPicked` om det stöds, annars "🔍 Visa" i listan).
+  **Kom ihåg att ladda upp `camera-pin.svg` tillsammans med `index.html`**
+  till din hosting, annars hittas inte ikonen.
 - **`viewer.onIconPicked` för klick-i-3D-vyn är också obeprövat.** Fungerar
   det inte, använd "🔍 Visa"-knappen i listan istället — den fungerar
   garanterat.

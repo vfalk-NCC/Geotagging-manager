@@ -302,15 +302,22 @@
   async function placePhotoIcon(photo){
     if(!API) return { iconId: null, markupIds: [] };
     const pos = { x: photo.projectX, y: photo.projectY, z: photo.projectZ };
+    // A real, hosted image URL (not a data: URI) — the "url" field expects
+    // something it can actually fetch and decode, confirmed by testing
+    // (data: URIs threw "InvalidStateError: source image could not be
+    // decoded"). The marker itself is a generic camera-pin icon; clicking
+    // it still opens the real photo via onIconPicked / the list below.
+    const staticIconUrl = new URL("camera-pin.svg", window.location.href).href;
     const attempts = [
-      { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: pos, tooltip: photo.fileName },
-      { id: "photo_"+photo.id, imageUrl: photo.thumbnailDataUrl, position: pos, label: photo.fileName },
-      { id: "photo_"+photo.id, iconUrl: photo.thumbnailDataUrl, position: { x: pos.x*1000, y: pos.y*1000, z: pos.z*1000 } }
+      { id: "photo_"+photo.id, url: staticIconUrl, position: pos, tooltip: photo.fileName },
+      { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: pos, tooltip: photo.fileName }, // in case data: URIs work in some environments
+      { id: "photo_"+photo.id, imageUrl: staticIconUrl, position: pos, label: photo.fileName },
+      { id: "photo_"+photo.id, iconUrl: staticIconUrl, position: { x: pos.x*1000, y: pos.y*1000, z: pos.z*1000 } }
     ];
     for(const attempt of attempts){
       try {
         const res = await API.viewer.addIcon([attempt]);
-        log("addIcon lyckades med form:", attempt.id ? Object.keys(attempt) : attempt, res);
+        log("addIcon lyckades med form:", Object.keys(attempt), res);
         return { iconId: photo.id + "", markupIds: [] };
       } catch(err){
         log("addIcon-försök misslyckades:", Object.keys(attempt), err.message||err);
