@@ -404,6 +404,9 @@
   function renderUploadList(){
     const wrap = el("uploadList");
     wrap.innerHTML = "";
+    if(!currentModelIdGuess){
+      wrap.innerHTML = '<div class="warn">⚠️ Modellens ID är inte känt än. Klicka en gång på valfritt objekt i 3D-vyn innan du sparar, annars kan inga markörer ritas ut.</div>';
+    }
     pendingUploads.forEach(item => {
       const gpsOk = item.exif.hasGps;
       const sane = gpsOk && dmsSanity(item.exif.lat, item.exif.lon);
@@ -487,9 +490,16 @@
         markupIds: []
       };
       if(projectPos && photo.modelId){
+        log("Placerar markör för", photo.fileName, "vid", projectPos, "modelId:", photo.modelId);
         const placed = await placePhotoIcon(photo);
         photo.iconId = placed.iconId;
         photo.markupIds = placed.markupIds;
+        if(!placed.iconId && !placed.markupIds.length){
+          photo.warnings.push("Kunde inte rita ut markören i 3D-vyn (varken addIcon eller reserv-linjer lyckades) — se 🐞 Rådata.");
+        }
+      } else if(projectPos && !photo.modelId){
+        photo.warnings.push("Koordinater fanns, men modellens ID var okänt så ingen markör kunde ritas. Klicka en gång på valfritt objekt i 3D-vyn och spara sedan om fotot.");
+        log("Hoppar över markör-ritning för", photo.fileName, "— modelId saknas helt.");
       }
       photos.push(photo);
     }
@@ -590,8 +600,13 @@
   async function onWorkspaceEvent(event, data){
     if(event === "viewer.onModelStateChanged" && data && data.data){
       const d = data.data;
+      const before = currentModelIdGuess;
       if(Array.isArray(d) && d[0] && d[0].modelId) currentModelIdGuess = d[0].modelId;
       else if(d.modelId) currentModelIdGuess = d.modelId;
+      if(!before && currentModelIdGuess){
+        log("modelId upptäckt via onModelStateChanged:", currentModelIdGuess);
+        if(el("uploadPanel").classList.contains("open")) renderUploadList();
+      }
     }
     if(event === "viewer.onPicked" && activeManualTarget){
       log("onPicked raw:", data);
@@ -627,6 +642,23 @@
         const sel = await API.viewer.getSelection();
         if(sel && sel[0]) currentModelIdGuess = sel[0].modelId;
       } catch(e){}
+      // Selection is often empty on load, so also try to read the loaded
+      // models directly (method name guessed — several plausible names
+      // tried since this isn't confirmed in the public docs).
+      if(!currentModelIdGuess){
+        for(const fn of ["getModels","getLoadedModels","getModelInfo"]){
+          try {
+            if(API.viewer[fn]){
+              const models = await API.viewer[fn]();
+              log(fn + "() gav:", models);
+              const list = Array.isArray(models) ? models : (models ? [models] : []);
+              if(list.length && list[0] && list[0].modelId){ currentModelIdGuess = list[0].modelId; break; }
+              if(list.length && list[0] && list[0].id){ currentModelIdGuess = list[0].id; break; }
+            }
+          } catch(err){ log(fn + "() misslyckades:", err.message||err); }
+        }
+      }
+      log("modelId vid start:", currentModelIdGuess || "(okänt än — väntar på onModelStateChanged eller klick)");
     } catch(err){
       statusEl.textContent = "Kunde inte ansluta";
       console.error(err);
