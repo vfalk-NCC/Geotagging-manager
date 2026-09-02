@@ -175,21 +175,23 @@
   const statusEl = el("status");
   const debugLogEl = el("debugLog");
 
+  let debugBuffer = "";
   function log(...args){
     console.log("[Site Photos]", ...args);
-    if(debugOn){
-      debugLogEl.textContent = (new Date().toLocaleTimeString() + " " + args.map(a=>{
-        try{ return typeof a === "string" ? a : JSON.stringify(a); } catch(e){ return String(a); }
-      }).join(" ") + "\n") + debugLogEl.textContent;
-    }
+    const line = new Date().toLocaleTimeString() + " " + args.map(a=>{
+      try{ return typeof a === "string" ? a : JSON.stringify(a); } catch(e){ return String(a); }
+    }).join(" ") + "\n";
+    debugBuffer = line + debugBuffer;
+    if(debugOn) debugLogEl.textContent = debugBuffer;
   }
   el("btnDebugToggle").onclick = () => {
     debugOn = !debugOn;
     debugLogEl.classList.toggle("open", debugOn);
     el("btnDebugToggle").classList.toggle("active", debugOn);
+    if(debugOn) debugLogEl.textContent = debugBuffer;
   };
   el("btnDebugCopy").onclick = async () => {
-    const text = debugLogEl.textContent || "(loggen är tom — gör en åtgärd med 🐞 Rådata påslaget först)";
+    const text = debugBuffer || "(loggen är tom — inga åtgärder har körts än sedan sidan laddades)";
     try {
       await navigator.clipboard.writeText(text);
       el("btnDebugCopy").textContent = "✅ Kopierat!";
