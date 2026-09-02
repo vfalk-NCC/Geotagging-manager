@@ -1,7 +1,7 @@
 {
-  "url": "https://din-domän.se/site-photos/index.html",
+  "url": "https://vfalk-ncc.github.io/Geotagging-manager/index.html",
   "title": "Site Photos",
-  "icon": "https://din-domän.se/site-photos/icon.png",
+  "icon": "https://tse1.mm.bing.net/th/id/OIP.UEiaSMaLNgZK9WwffKIHAQAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3",
   "description": "Ladda upp geotaggade platsfoton, transformera GPS-koordinater till projektets SWEREF-system, och se klickbara foto-markörer i 3D-modellen.",
   "extensionType": ["3dviewer"]
 }
