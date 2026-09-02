@@ -1,0 +1,7 @@
+{
+  "url": "https://din-domän.se/site-photos/index.html",
+  "title": "Site Photos",
+  "icon": "https://din-domän.se/site-photos/icon.png",
+  "description": "Ladda upp geotaggade platsfoton, transformera GPS-koordinater till projektets SWEREF-system, och se klickbara foto-markörer i 3D-modellen.",
+  "extensionType": ["3dviewer"]
+}

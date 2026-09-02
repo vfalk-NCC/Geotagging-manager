@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Site Photos – Trimble Connect</title>
+<script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
+<style>
+  :root{
+    --bg:#fff; --panel-bg:#f7f8fa; --border:#e2e4e8; --text:#1f2430; --text-muted:#6b7280;
+    --accent:#2563eb; --warn:#d97706; --danger:#dc2626; --radius:10px; --shadow:0 2px 10px rgba(0,0,0,.08);
+    font-family:"Trimble Sans","Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-size:13px;}
+  #app{display:flex;flex-direction:column;height:100%;}
+  header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  header h1{font-size:14px;margin:0;font-weight:600;}
+  .status{font-size:11px;color:var(--text-muted);}
+  .toolbar{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  button{font:inherit;cursor:pointer;border:1px solid var(--border);background:#fff;padding:6px 10px;border-radius:8px;color:var(--text);}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.danger{background:var(--danger);border-color:var(--danger);color:#fff;}
+  button.ghost{background:transparent;border-color:transparent;color:var(--text-muted);}
+  button.active{outline:2px solid var(--accent);}
+  button:hover:not(:disabled){filter:brightness(0.97);}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+
+  .hint{font-size:11.5px;color:var(--text-muted);margin-bottom:8px;line-height:1.4;}
+  .warn{font-size:11.5px;color:var(--warn);background:#fef3e2;border:1px solid #fcd9a8;border-radius:8px;padding:6px 8px;margin:6px 0;display:flex;gap:6px;align-items:flex-start;}
+  .row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:0;}
+  label{display:block;font-size:11.5px;color:var(--text-muted);margin:6px 0 3px;}
+  input[type=text], input[type=number], select, textarea{width:100%;font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#fff;}
+  textarea{resize:vertical;min-height:50px;}
+
+  #crsPanel{padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel-bg);display:none;}
+  #crsPanel.open{display:block;}
+  #crsPanel .epsgLabel{font-weight:600;font-size:12px;}
+
+  #uploadPanel{padding:12px;border-bottom:2px solid var(--accent);background:var(--panel-bg);display:none;}
+  #uploadPanel.open{display:block;}
+  .photo-item{border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;background:#fff;display:flex;gap:8px;}
+  .photo-item img.thumb{width:70px;height:70px;object-fit:cover;border-radius:6px;flex-shrink:0;background:#eee;}
+  .photo-item .meta{flex:1;min-width:0;font-size:11.5px;}
+  .photo-item .meta .fname{font-weight:600;font-size:12px;margin-bottom:2px;word-break:break-all;}
+  .gpsbadge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;margin-top:2px;}
+  .gpsbadge.ok{background:#dcfce7;color:#166534;}
+  .gpsbadge.none{background:#fef3e2;color:#92400e;}
+  .gpsbadge.manual{background:#e0e7ff;color:#3730a3;}
+
+  #fileInput{display:none;}
+
+  #listHeader{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--panel-bg);}
+  #listHeader .count{font-size:11.5px;color:var(--text-muted);}
+  #list{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+  .empty{color:var(--text-muted);text-align:center;margin-top:40px;font-size:12px;}
+  .p-card{border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden;background:#fff;display:flex;}
+  .p-card img.pthumb{width:64px;height:64px;object-fit:cover;flex-shrink:0;cursor:pointer;}
+  .p-card .info{flex:1;min-width:0;padding:8px;}
+  .p-card .info .title{font-weight:600;font-size:12px;margin-bottom:2px;word-break:break-all;}
+  .p-card .info .sub{font-size:10.5px;color:var(--text-muted);}
+  .p-card .tags{margin-top:3px;}
+  .tag{display:inline-block;background:var(--panel-bg);border:1px solid var(--border);border-radius:5px;padding:1px 5px;font-size:10px;margin:1px 2px 0 0;color:var(--text-muted);}
+  .p-card .actions{display:flex;flex-direction:column;gap:3px;padding:6px;border-left:1px solid var(--border);}
+  .p-card .actions button{padding:3px 6px;font-size:10.5px;border-radius:6px;white-space:nowrap;}
+
+  /* Lightbox */
+  #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:1000;flex-direction:column;padding:20px;}
+  #lightbox.open{display:flex;}
+  #lightbox img{max-width:100%;max-height:60vh;border-radius:8px;object-fit:contain;background:#111;}
+  #lightbox .lbPanel{background:#fff;border-radius:10px;padding:12px;margin-top:10px;max-width:480px;width:100%;max-height:32vh;overflow-y:auto;}
+  #lightbox .lbClose{position:absolute;top:16px;right:20px;background:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;}
+  #lightbox .lbField{margin-bottom:6px;font-size:11.5px;}
+  #lightbox .lbField b{display:block;color:var(--text-muted);font-weight:500;font-size:10.5px;}
+  #lightbox .lbActions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  #lightbox .lbActions button{font-size:11px;padding:5px 9px;}
+
+  #debugLog{font-size:10.5px;color:var(--text-muted);padding:6px 12px;border-top:1px solid var(--border);max-height:90px;overflow-y:auto;white-space:pre-wrap;display:none;}
+  #debugLog.open{display:block;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>📷 Site Photos</h1>
+    <span class="status" id="status">Ansluter…</span>
+  </header>
+
+  <div class="toolbar">
+    <button class="primary" id="btnAddPhotos">+ Ladda upp foton</button>
+    <button class="ghost" id="btnCrsToggle">🌐 Koordinatsystem</button>
+    <button class="ghost" id="btnDebugToggle">🐞 Rådata</button>
+  </div>
+
+  <div id="crsPanel">
+    <label>Projektets koordinatsystem (EPSG)</label>
+    <select id="crsSelect"></select>
+    <div class="hint">Vald EPSG-kod: <span class="epsgLabel" id="epsgLabel">—</span></div>
+    <div id="customCrsRow" style="display:none;">
+      <label>Egen EPSG-kod</label>
+      <input type="text" id="customEpsgCode" placeholder="t.ex. EPSG:3021 (RT90 2.5 gon V)" />
+      <label>Egen proj4-definition</label>
+      <input type="text" id="customProj4" placeholder="+proj=tmerc +lat_0=... +lon_0=... +ellps=... +units=m +no_defs" />
+    </div>
+    <div class="hint">
+      Foton georefererade från GPS (WGS84, EPSG:4326) transformeras till detta
+      system innan de placeras i modellen. Om projektets modell ligger i ett
+      annat SWEREF-system än det valda kommer markörerna hamna fel — dubbelkolla
+      mot en känd punkt i modellen.
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*" multiple />
+
+  <div id="uploadPanel">
+    <h3 style="font-size:12.5px;margin:0 0 8px;">Nya foton</h3>
+    <div id="uploadList"></div>
+    <div class="row">
+      <button class="ghost" id="btnCancelUpload">Avbryt</button>
+      <button class="primary" id="btnSaveAll">Spara alla</button>
+    </div>
+  </div>
+
+  <div id="listHeader">
+    <span class="count" id="photoCount">0 foton</span>
+  </div>
+  <div id="list"></div>
+  <div id="debugLog"></div>
+</div>
+
+<div id="lightbox">
+  <div class="lbClose" id="lbClose">✕</div>
+  <img id="lbImg" src="" />
+  <div class="lbPanel" id="lbPanel"></div>
+</div>
+
+<script>
+(function(){
+  // ---------- Explicit, verified SWEREF99 EPSG definitions (Lantmäteriet) ----------
+  // These are stable, publicly documented projection parameters — the one part
+  // of this tool that is NOT a guess. Add more here (e.g. RT90 zones) if needed.
+  const CRS_DEFS = {
+    "EPSG:3006": { label: "SWEREF99 TM (EPSG:3006) — hela Sverige", proj4: "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3007": { label: "SWEREF99 12 00 (EPSG:3007)", proj4: "+proj=tmerc +lat_0=0 +lon_0=12 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3008": { label: "SWEREF99 13 30 (EPSG:3008)", proj4: "+proj=tmerc +lat_0=0 +lon_0=13.5 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3009": { label: "SWEREF99 15 00 (EPSG:3009)", proj4: "+proj=tmerc +lat_0=0 +lon_0=15 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3010": { label: "SWEREF99 16 30 (EPSG:3010)", proj4: "+proj=tmerc +lat_0=0 +lon_0=16.5 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3011": { label: "SWEREF99 18 00 (EPSG:3011)", proj4: "+proj=tmerc +lat_0=0 +lon_0=18 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3012": { label: "SWEREF99 14 15 (EPSG:3012)", proj4: "+proj=tmerc +lat_0=0 +lon_0=14.25 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3013": { label: "SWEREF99 15 45 (EPSG:3013)", proj4: "+proj=tmerc +lat_0=0 +lon_0=15.75 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3014": { label: "SWEREF99 17 15 (EPSG:3014)", proj4: "+proj=tmerc +lat_0=0 +lon_0=17.25 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3015": { label: "SWEREF99 18 45 (EPSG:3015)", proj4: "+proj=tmerc +lat_0=0 +lon_0=18.75 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3016": { label: "SWEREF99 20 15 (EPSG:3016)", proj4: "+proj=tmerc +lat_0=0 +lon_0=20.25 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3017": { label: "SWEREF99 21 45 (EPSG:3017)", proj4: "+proj=tmerc +lat_0=0 +lon_0=21.75 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "EPSG:3018": { label: "SWEREF99 23 15 (EPSG:3018)", proj4: "+proj=tmerc +lat_0=0 +lon_0=23.25 +k=1 +x_0=150000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+    "CUSTOM": { label: "Egen (ange EPSG-kod + proj4 nedan)", proj4: null }
+  };
+
+  let API = null;
+  let accessToken = null;
+  let apiBaseUrl = null;
+  let currentModelIdGuess = null;
+  let debugOn = false;
+  let selectedCrsCode = "EPSG:3006";
+
+  let photos = []; // saved photos, see renderPhotoList
+  let nextPhotoId = 1;
+  let pendingUploads = []; // items being prepared in the upload panel
+
+  const el = id => document.getElementById(id);
+  const statusEl = el("status");
+  const debugLogEl = el("debugLog");
+
+  function log(...args){
+    console.log("[Site Photos]", ...args);
+    if(debugOn){
+      debugLogEl.textContent = (new Date().toLocaleTimeString() + " " + args.map(a=>{
+        try{ return typeof a === "string" ? a : JSON.stringify(a); } catch(e){ return String(a); }
+      }).join(" ") + "\n") + debugLogEl.textContent;
+    }
+  }
+  el("btnDebugToggle").onclick = () => {
+    debugOn = !debugOn;
+    debugLogEl.classList.toggle("open", debugOn);
+    el("btnDebugToggle").classList.toggle("active", debugOn);
+  };
+
+  // ---------------- CRS panel ----------------
+
+  function populateCrsSelect(){
+    const sel = el("crsSelect");
+    sel.innerHTML = "";
+    Object.entries(CRS_DEFS).forEach(([code, def]) => {
+      const o = document.createElement("option");
+      o.value = code; o.textContent = def.label;
+      sel.appendChild(o);
+    });
+    sel.value = selectedCrsCode;
+    updateEpsgLabel();
+  }
+  function updateEpsgLabel(){
+    const code = el("crsSelect").value;
+    el("customCrsRow").style.display = code === "CUSTOM" ? "block" : "none";
+    if(code === "CUSTOM"){
+      const custom = el("customEpsgCode").value.trim();
+      el("epsgLabel").textContent = custom || "(ej angiven)";
+    } else {
+      el("epsgLabel").textContent = code;
+    }
+  }
+  el("crsSelect").onchange = () => { selectedCrsCode = el("crsSelect").value; updateEpsgLabel(); };
+  el("customEpsgCode").oninput = updateEpsgLabel;
+  el("customProj4").oninput = updateEpsgLabel;
+  el("btnCrsToggle").onclick = () => el("crsPanel").classList.toggle("open");
+
+  function activeCrs(){
+    const code = el("crsSelect").value;
+    if(code === "CUSTOM"){
+      const customCode = el("customEpsgCode").value.trim() || "CUSTOM";
+      const def = el("customProj4").value.trim();
+      return { code: customCode, proj4: def };
+    }
+    return { code, proj4: CRS_DEFS[code].proj4 };
+  }
+
+  // WGS84 (lon,lat) -> project CRS (x,y) in meters. Returns null if the CRS
+  // isn't configured (e.g. empty custom proj4 string).
+  function transformToProjectCrs(lon, lat){
+    const crs = activeCrs();
+    if(!crs.proj4) return null;
+    try {
+      const [x,y] = proj4("EPSG:4326", crs.proj4, [lon, lat]);
+      return { x, y, code: crs.code };
+    } catch(err){
+      log("proj4-transform misslyckades:", err.message||err);
+      return null;
+    }
+  }
+
+  populateCrsSelect();
+
+  // ---------------- Markup / icon helpers ----------------
+
+  function hexToRgba(hex, alpha){
+    return { r: parseInt(hex.slice(1,3),16), g: parseInt(hex.slice(3,5),16), b: parseInt(hex.slice(5,7),16), a: alpha ?? 255 };
+  }
+  function makePick(modelId, xMM, yMM, zMM){
+    return { modelId, positionX: xMM, positionY: yMM, positionZ: zMM, type: "point" };
+  }
+  async function drawEdgesBatch(modelId, edges, color){
+    const defs = edges.map(([a,b]) => ({
+      color,
+      start: makePick(modelId, a.xMM, a.yMM, a.zMM),
+      end: makePick(modelId, b.xMM, b.yMM, b.zMM)
+    }));
+    try {
+      if(API.markup.addLineMarkups){
+        const added = await API.markup.addLineMarkups(defs);
+        if(added && added.length) return added.map(m=>m&&m.id).filter(Boolean);
+      }
+    } catch(err){ log("addLineMarkups misslyckades:", err.message||err); }
+    try {
+      const added = await API.markup.addArrowMarkups(defs);
+      if(added && added.length) return added.map(m=>m&&m.id).filter(Boolean);
+    } catch(err){ log("addArrowMarkups misslyckades också:", err.message||err); }
+    return [];
+  }
+  async function removeMarkupIds(ids){
+    const clean = (ids||[]).filter(Boolean);
+    if(clean.length && API){ try{ await API.markup.removeMarkups(clean); }catch(e){} }
+  }
+
+  // Places a clickable icon at a 3D position using viewer.addIcon(). This is
+  // the best-effort path — the exact IconAttributes schema isn't fully
+  // documented publicly, so a couple of plausible shapes are tried. Falls
+  // back to a small colored point marker (via the Markup API) if addIcon
+  // is rejected, so a photo is always visible somehow.
+  async function placePhotoIcon(photo){
+    if(!API) return { iconId: null, markupIds: [] };
+    const pos = { x: photo.projectX, y: photo.projectY, z: photo.projectZ };
+    const attempts = [
+      { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: pos, tooltip: photo.fileName },
+      { id: "photo_"+photo.id, imageUrl: photo.thumbnailDataUrl, position: pos, label: photo.fileName },
+      { id: "photo_"+photo.id, iconUrl: photo.thumbnailDataUrl, position: { x: pos.x*1000, y: pos.y*1000, z: pos.z*1000 } }
+    ];
+    for(const attempt of attempts){
+      try {
+        const res = await API.viewer.addIcon([attempt]);
+        log("addIcon lyckades med form:", attempt.id ? Object.keys(attempt) : attempt, res);
+        return { iconId: photo.id + "", markupIds: [] };
+      } catch(err){
+        log("addIcon-försök misslyckades:", Object.keys(attempt), err.message||err);
+      }
+    }
+    // Fallback: small point + camera-direction arrow via markup lines
+    log("addIcon stöds inte i denna form — faller tillbaka på linjemarkör.");
+    const c = { xMM: pos.x*1000, yMM: pos.y*1000, zMM: pos.z*1000 };
+    const size = 0.3;
+    const cross = [
+      [{xMM:c.xMM-size*1000,yMM:c.yMM,zMM:c.zMM},{xMM:c.xMM+size*1000,yMM:c.yMM,zMM:c.zMM}],
+      [{xMM:c.xMM,yMM:c.yMM-size*1000,zMM:c.zMM},{xMM:c.xMM,yMM:c.yMM+size*1000,zMM:c.zMM}],
+      [{xMM:c.xMM,yMM:c.yMM,zMM:c.zMM-size*1000},{xMM:c.xMM,yMM:c.yMM,zMM:c.zMM+size*1000}]
+    ];
+    const markupIds = await drawEdgesBatch(photo.modelId, cross, hexToRgba("#2563eb"));
+    return { iconId: null, markupIds };
+  }
+
+  async function removePhotoMarker(photo){
+    if(photo.iconId && API && API.viewer.removeIcons){
+      try { await API.viewer.removeIcons([photo.iconId]); }
+      catch(err){ log("removeIcons misslyckades:", err.message||err); }
+    }
+    await removeMarkupIds(photo.markupIds);
+  }
+
+  async function zoomToPhoto(photo){
+    if(!API) return;
+    try {
+      await API.viewer.setCamera({ position: { x: photo.projectX+5, y: photo.projectY-5, z: photo.projectZ+3 }, target: { x: photo.projectX, y: photo.projectY, z: photo.projectZ } }, { animationTime: 500 });
+    } catch(err){ log("Zoom till foto misslyckades:", err.message||err); }
+  }
+
+  // ---------------- EXIF / GPS extraction ----------------
+
+  function dmsSanity(lat, lon){
+    // Very rough sanity check for Sweden — flags GPS that's clearly not local,
+    // e.g. if the photo was imported from elsewhere, or EXIF is corrupt.
+    return lat >= 54 && lat <= 70 && lon >= 4 && lon <= 25;
+  }
+
+  async function extractExif(file){
+    try {
+      const gps = await exifr.gps(file);
+      const full = await exifr.parse(file, { gps: true, exif: true, tiff: true }).catch(()=>null);
+      const out = { lat: null, lon: null, alt: null, direction: null, timestamp: null, hasGps: false };
+      if(gps && typeof gps.latitude === "number"){
+        out.lat = gps.latitude; out.lon = gps.longitude; out.hasGps = true;
+      }
+      if(full){
+        if(typeof full.GPSAltitude === "number") out.alt = full.GPSAltitude;
+        if(typeof full.GPSImgDirection === "number") out.direction = full.GPSImgDirection;
+        out.timestamp = full.DateTimeOriginal || full.CreateDate || null;
+      }
+      return out;
+    } catch(err){
+      log("EXIF-läsning misslyckades för", file.name, ":", err.message||err);
+      return { lat:null, lon:null, alt:null, direction:null, timestamp:null, hasGps:false };
+    }
+  }
+
+  function makeThumbnail(file, maxSide){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const scale = Math.min(1, maxSide / Math.max(w,h));
+        w = Math.round(w*scale); h = Math.round(h*scale);
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+  function fileToDataUrl(file){
+    return new Promise((resolve,reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // ---------------- Upload panel ----------------
+
+  el("btnAddPhotos").onclick = () => el("fileInput").click();
+  el("fileInput").onchange = async (e) => {
+    const files = [...e.target.files];
+    if(!files.length) return;
+    el("uploadPanel").classList.add("open");
+    el("uploadList").innerHTML = '<div class="hint">Läser EXIF-data…</div>';
+    pendingUploads = [];
+    for(const file of files){
+      const exif = await extractExif(file);
+      const thumb = await makeThumbnail(file, 300).catch(()=>null);
+      pendingUploads.push({
+        localId: "u"+Math.random().toString(36).slice(2),
+        file, exif, thumb,
+        description: "", tags: "",
+        manualPoint: null,
+        manualToolActive: false
+      });
+    }
+    renderUploadList();
+  };
+
+  function renderUploadList(){
+    const wrap = el("uploadList");
+    wrap.innerHTML = "";
+    pendingUploads.forEach(item => {
+      const gpsOk = item.exif.hasGps;
+      const sane = gpsOk && dmsSanity(item.exif.lat, item.exif.lon);
+      const div = document.createElement("div");
+      div.className = "photo-item";
+      div.innerHTML = `
+        <img class="thumb" src="${item.thumb||''}" />
+        <div class="meta">
+          <div class="fname">${item.file.name}</div>
+          ${gpsOk
+            ? `<span class="gpsbadge ${sane?'ok':'none'}">${sane?'GPS hittad':'GPS avvikande — kontrollera'}</span> ${item.exif.lat.toFixed(6)}, ${item.exif.lon.toFixed(6)}${item.exif.alt!=null?' · '+item.exif.alt.toFixed(1)+' m ö.h. (osäker)':''}`
+            : `<span class="gpsbadge none">Ingen GPS</span> <button class="ghost" data-act="manual" style="font-size:10.5px;padding:2px 6px;">📍 Placera manuellt i 3D-vyn</button> <span class="hint" data-manual-status style="display:block;margin:2px 0 0;"></span>`
+          }
+          <input type="text" placeholder="Beskrivning" data-field="description" style="margin-top:4px;font-size:11px;padding:4px 6px;" />
+          <input type="text" placeholder="Taggar (kommaseparerat)" data-field="tags" style="margin-top:4px;font-size:11px;padding:4px 6px;" />
+        </div>
+      `;
+      div.querySelector('[data-field="description"]').oninput = (e) => item.description = e.target.value;
+      div.querySelector('[data-field="tags"]').oninput = (e) => item.tags = e.target.value;
+      const manualBtn = div.querySelector('[data-act="manual"]');
+      if(manualBtn){
+        manualBtn.onclick = () => {
+          pendingUploads.forEach(p => p.manualToolActive = false);
+          item.manualToolActive = true;
+          activeManualTarget = item;
+          div.querySelector('[data-manual-status]').textContent = "Klicka nu på rätt plats i 3D-vyn…";
+        };
+      }
+      wrap.appendChild(div);
+    });
+  }
+
+  let activeManualTarget = null;
+
+  el("btnCancelUpload").onclick = () => {
+    pendingUploads = []; activeManualTarget = null;
+    el("uploadPanel").classList.remove("open");
+  };
+
+  el("btnSaveAll").onclick = async () => {
+    const crs = activeCrs();
+    if(!crs.proj4){ alert("Ange en giltig proj4-definition för koordinatsystemet (eller välj ett fördefinierat SWEREF-system) innan du sparar."); return; }
+    for(const item of pendingUploads){
+      let projectPos = null, warnings = [];
+      if(item.exif.hasGps){
+        const t = transformToProjectCrs(item.exif.lon, item.exif.lat);
+        if(t){
+          projectPos = { x: t.x, y: t.y, z: item.exif.alt ?? 0 };
+          if(!dmsSanity(item.exif.lat, item.exif.lon)) warnings.push("GPS-koordinaten ligger utanför förväntat område för Sverige — kontrollera manuellt.");
+          if(item.exif.alt == null) warnings.push("Ingen GPS-höjd i EXIF — Z satt till 0, justera manuellt vid behov.");
+          else warnings.push("GPS-höjd från telefonkamera är ofta osäker (±10–50 m) — verifiera vid behov.");
+        } else {
+          warnings.push("Koordinattransformationen misslyckades — kontrollera proj4-definitionen.");
+        }
+      } else if(item.manualPoint){
+        projectPos = { x: item.manualPoint.xMM/1000, y: item.manualPoint.yMM/1000, z: item.manualPoint.zMM/1000 };
+        warnings.push("Manuellt placerad — ingen GPS fanns i bilden.");
+      } else {
+        warnings.push("Ingen position angiven (varken GPS eller manuell placering) — foto sparas utan markör.");
+      }
+
+      const fullDataUrl = await fileToDataUrl(item.file);
+      const photo = {
+        id: nextPhotoId++,
+        fileName: item.file.name,
+        thumbnailDataUrl: item.thumb,
+        fullDataUrl,
+        timestamp: item.exif.timestamp || null,
+        originalGps: item.exif.hasGps ? { lat: item.exif.lat, lon: item.exif.lon, alt: item.exif.alt } : null,
+        projectX: projectPos ? projectPos.x : null,
+        projectY: projectPos ? projectPos.y : null,
+        projectZ: projectPos ? projectPos.z : null,
+        crsCode: crs.code,
+        cameraDirection: item.exif.direction,
+        description: item.description,
+        tags: item.tags.split(",").map(t=>t.trim()).filter(Boolean),
+        placementMethod: item.exif.hasGps ? "gps" : (item.manualPoint ? "manual" : "none"),
+        warnings,
+        modelId: (item.manualPoint && item.manualPoint.modelId) || currentModelIdGuess,
+        iconId: null,
+        markupIds: []
+      };
+      if(projectPos && photo.modelId){
+        const placed = await placePhotoIcon(photo);
+        photo.iconId = placed.iconId;
+        photo.markupIds = placed.markupIds;
+      }
+      photos.push(photo);
+    }
+    pendingUploads = [];
+    activeManualTarget = null;
+    el("uploadPanel").classList.remove("open");
+    renderPhotoList();
+  };
+
+  // ---------------- Photo list & lightbox ----------------
+
+  function renderPhotoList(){
+    el("photoCount").textContent = `${photos.length} foto${photos.length===1?"":"n"}`;
+    const list = el("list");
+    list.innerHTML = "";
+    if(!photos.length){
+      list.innerHTML = '<div class="empty">Inga foton ännu.<br/>Klicka "+ Ladda upp foton" för att börja.</div>';
+      return;
+    }
+    photos.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "p-card";
+      const tagsHtml = p.tags.map(t => `<span class="tag">${t}</span>`).join("");
+      card.innerHTML = `
+        <img class="pthumb" src="${p.thumbnailDataUrl||''}" data-act="open" />
+        <div class="info">
+          <div class="title">${p.fileName}</div>
+          <div class="sub">${p.timestamp ? new Date(p.timestamp).toLocaleString() : "Okänt datum"} · ${p.placementMethod==='gps'?'GPS':(p.placementMethod==='manual'?'Manuell':'Ingen position')}</div>
+          <div class="tags">${tagsHtml}</div>
+        </div>
+        <div class="actions">
+          <button data-act="open">🔍 Visa</button>
+          <button data-act="zoom">🎯 Zooma</button>
+          <button data-act="del">Ta bort</button>
+        </div>
+      `;
+      card.querySelectorAll('[data-act="open"]').forEach(elm => elm.onclick = () => openLightbox(p));
+      card.querySelector('[data-act="zoom"]').onclick = () => zoomToPhoto(p);
+      card.querySelector('[data-act="del"]').onclick = async () => {
+        if(!confirm(`Ta bort ${p.fileName}?`)) return;
+        await removePhotoMarker(p);
+        photos = photos.filter(x => x.id !== p.id);
+        renderPhotoList();
+      };
+      list.appendChild(card);
+    });
+  }
+
+  function openLightbox(p){
+    el("lbImg").src = p.fullDataUrl || p.thumbnailDataUrl;
+    const warnHtml = (p.warnings||[]).map(w => `<div class="warn">⚠️ ${w}</div>`).join("");
+    el("lbPanel").innerHTML = `
+      ${warnHtml}
+      <div class="lbField"><b>Fil</b>${p.fileName}</div>
+      <div class="lbField"><b>Tidsstämpel</b>${p.timestamp ? new Date(p.timestamp).toLocaleString() : "Okänt"}</div>
+      <div class="lbField"><b>Original-GPS (WGS84)</b>${p.originalGps ? p.originalGps.lat.toFixed(6)+', '+p.originalGps.lon.toFixed(6) : "Saknas"}</div>
+      <div class="lbField"><b>Projektkoordinater (${p.crsCode})</b>${p.projectX!=null ? p.projectX.toFixed(2)+', '+p.projectY.toFixed(2)+', '+(p.projectZ??0).toFixed(2) : "Ej placerad"}</div>
+      <div class="lbField"><b>Kamerariktning</b>${p.cameraDirection!=null ? p.cameraDirection.toFixed(0)+'°' : "Okänd"}</div>
+      <div class="lbField"><b>Beskrivning</b><textarea id="lbDesc">${p.description||""}</textarea></div>
+      <div class="lbField"><b>Taggar (kommaseparerat)</b><input type="text" id="lbTags" value="${p.tags.join(', ')}" /></div>
+      <div class="lbActions">
+        <button class="primary" id="lbSave">💾 Spara ändringar</button>
+        <button class="ghost" id="lbZoom">🎯 Zooma till foto</button>
+        <button class="danger" id="lbDelete">Ta bort foto</button>
+      </div>
+    `;
+    el("lbSave").onclick = () => {
+      p.description = el("lbDesc").value;
+      p.tags = el("lbTags").value.split(",").map(t=>t.trim()).filter(Boolean);
+      renderPhotoList();
+      closeLightbox();
+    };
+    el("lbZoom").onclick = () => zoomToPhoto(p);
+    el("lbDelete").onclick = async () => {
+      if(!confirm(`Ta bort ${p.fileName}?`)) return;
+      await removePhotoMarker(p);
+      photos = photos.filter(x => x.id !== p.id);
+      renderPhotoList();
+      closeLightbox();
+    };
+    el("lightbox").classList.add("open");
+  }
+  function closeLightbox(){ el("lightbox").classList.remove("open"); }
+  el("lbClose").onclick = closeLightbox;
+  el("lightbox").addEventListener("click", (e) => { if(e.target.id === "lightbox") closeLightbox(); });
+
+  // ---------------- Workspace connection & manual-placement pick routing ----------------
+
+  function extractPickPoint(data){
+    if(!data) return null;
+    const p = data.position || data.point || data.hitPoint || data;
+    if(!p) return null;
+    const x = p.x ?? p.positionX, y = p.y ?? p.positionY, z = p.z ?? p.positionZ;
+    if(x===undefined||y===undefined||z===undefined) return null;
+    return { xMM:x*1000, yMM:y*1000, zMM:z*1000, modelId: data.modelId||(data.model&&data.model.id)||currentModelIdGuess };
+  }
+
+  async function onWorkspaceEvent(event, data){
+    if(event === "viewer.onModelStateChanged" && data && data.data){
+      const d = data.data;
+      if(Array.isArray(d) && d[0] && d[0].modelId) currentModelIdGuess = d[0].modelId;
+      else if(d.modelId) currentModelIdGuess = d.modelId;
+    }
+    if(event === "viewer.onPicked" && activeManualTarget){
+      log("onPicked raw:", data);
+      const point = extractPickPoint(data && data.data ? data.data : data);
+      if(!point || !point.modelId){ log("Kunde inte tolka klickpunkten."); return; }
+      activeManualTarget.manualPoint = point;
+      activeManualTarget.manualToolActive = false;
+      const target = activeManualTarget;
+      activeManualTarget = null;
+      renderUploadList();
+      // Re-find the status element for this item and confirm
+      setTimeout(() => {
+        const items = el("uploadList").querySelectorAll(".photo-item");
+        // best-effort re-render already shows updated state; nothing else needed
+      }, 0);
+    }
+    if(event === "viewer.onIconPicked"){
+      log("onIconPicked:", data);
+      const d = data && data.data ? data.data : data;
+      const iconId = d && (d.iconId || d.id || (Array.isArray(d) && d[0] && d[0].id));
+      if(iconId){
+        const p = photos.find(ph => ("photo_"+ph.id) === iconId || (""+ph.id) === (""+iconId));
+        if(p) openLightbox(p);
+      }
+    }
+  }
+
+  async function init(){
+    try {
+      API = await TrimbleConnectWorkspace.connect(window.parent, onWorkspaceEvent, 20000);
+      statusEl.textContent = "Ansluten";
+      try {
+        const sel = await API.viewer.getSelection();
+        if(sel && sel[0]) currentModelIdGuess = sel[0].modelId;
+      } catch(e){}
+    } catch(err){
+      statusEl.textContent = "Kunde inte ansluta";
+      console.error(err);
+    }
+  }
+
+  renderPhotoList();
+  init();
+})();
+</script>
+</body>
+</html>
