@@ -302,20 +302,32 @@
   async function placePhotoIcon(photo){
     if(!API) return { iconId: null, markupIds: [] };
     const pos = { x: photo.projectX, y: photo.projectY, z: photo.projectZ };
-    // Confirmed by testing: the field is "url", and it must be a decodable
-    // RASTER image — a JPEG data: URI works fine, but an SVG file does NOT
-    // (Trimble's icon decoder rejects SVG with "source image could not be
-    // decoded"). So the actual photo thumbnail (JPEG) is used directly.
+    // Testing has been inconclusive on the "InvalidStateError" — it may be
+    // flaky/transient rather than caused by position units or image format,
+    // since identical image data both failed and succeeded across tests.
+    // So: try the SAME well-formed call (meters, matching setCamera's
+    // convention) up to 3 times with a short delay before trying anything
+    // else, to separate "flaky" from "genuinely wrong".
+    const primary = { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: pos, tooltip: photo.fileName };
+    for(let i = 1; i <= 3; i++){
+      try {
+        const res = await API.viewer.addIcon([primary]);
+        log(`addIcon lyckades (försök ${i}/3, meter-position):`, JSON.stringify(pos), res);
+        return { iconId: primary.id, markupIds: [] };
+      } catch(err){
+        log(`addIcon misslyckades (försök ${i}/3, meter-position):`, err.message||err);
+        if(i < 3) await new Promise(r => setTimeout(r, 400));
+      }
+    }
     const attempts = [
-      { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: pos, tooltip: photo.fileName },
-      { id: "photo_"+photo.id, url: photo.thumbnailDataUrl, position: { x: pos.x*1000, y: pos.y*1000, z: pos.z*1000 }, tooltip: photo.fileName }, // in case position needs mm here
-      { id: "photo_"+photo.id, imageUrl: photo.thumbnailDataUrl, position: pos, label: photo.fileName }
+      { id: "photo_"+photo.id+"_b", url: photo.thumbnailDataUrl, position: { x: pos.x*1000, y: pos.y*1000, z: pos.z*1000 }, tooltip: photo.fileName },
+      { id: "photo_"+photo.id+"_c", imageUrl: photo.thumbnailDataUrl, position: pos, label: photo.fileName }
     ];
     for(const attempt of attempts){
       try {
         const res = await API.viewer.addIcon([attempt]);
         log("addIcon lyckades med form:", Object.keys(attempt), JSON.stringify(attempt.position), res);
-        return { iconId: photo.id + "", markupIds: [] };
+        return { iconId: attempt.id, markupIds: [] };
       } catch(err){
         log("addIcon-försök misslyckades:", Object.keys(attempt), err.message||err);
       }
@@ -653,7 +665,7 @@
       const d = data && data.data ? data.data : data;
       const iconId = d && (d.iconId || d.id || (Array.isArray(d) && d[0] && d[0].id));
       if(iconId){
-        const p = photos.find(ph => ("photo_"+ph.id) === iconId || (""+ph.id) === (""+iconId));
+        const p = photos.find(ph => (""+ph.iconId) === (""+iconId));
         if(p) openLightbox(p);
       }
     }
