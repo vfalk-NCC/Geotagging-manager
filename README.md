@@ -55,16 +55,12 @@ Capabilities → Add Custom**.
   säkra, verifierade delen** av detta tillägg — SWEREF99-zonernas
   proj4-parametrar är stabila, publikt dokumenterade värden från
   Lantmäteriet, inte en gissning mot Trimbles API.
-- **`viewer.addIcon()` för foto-markörer.** Vi har nu bekräftat via test att
-  fältet heter **`url`** (inte `imageUrl`/`iconUrl`) — men det måste peka på
-  en **riktig, hämtningsbar bildadress**, inte en inbäddad `data:`-URI (det
-  gav `InvalidStateError: source image could not be decoded`). Därför
-  används en statisk ikonfil (`camera-pin.svg`, medföljer i detta repo) som
-  markörbild istället för det faktiska fotot — markören visar en generisk
-  kamera-pin, men ett klick öppnar ändå det riktiga fotot (via
-  `viewer.onIconPicked` om det stöds, annars "🔍 Visa" i listan).
-  **Kom ihåg att ladda upp `camera-pin.svg` tillsammans med `index.html`**
-  till din hosting, annars hittas inte ikonen.
+- **`viewer.addIcon()` för foto-markörer.** Bekräftat via test: fältet
+  heter **`url`**, och det *kan* vara en `data:`-URI — men bara om bilden är
+  ett **raster-format (JPEG/PNG)**. Ett SVG-försök gav samma
+  `InvalidStateError: source image could not be decoded` som vi först
+  misstänkte berodde på data-URI:er i sig. Den faktiska foto-miniatyren
+  (JPEG) används alltså direkt som markörbild.
 - **`viewer.onIconPicked` för klick-i-3D-vyn är också obeprövat.** Fungerar
   det inte, använd "🔍 Visa"-knappen i listan istället — den fungerar
   garanterat.
