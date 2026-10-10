@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Modellvisare – Lilla Aspeboda Hall</title>
+<style>
+  :root{--bg:#f3f4f6;--panel:#fff;--border:#e2e4e8;--text:#1f2430;--muted:#6b7280;--accent:#2563eb;
+    font-family:"Segoe UI",Roboto,Arial,sans-serif;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-size:13px;}
+  #view{position:fixed;inset:0;}
+  #panel{position:fixed;top:10px;left:10px;width:230px;max-height:calc(100% - 20px);overflow:auto;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);}
+  h1{font-size:14px;margin:0 0 6px;}
+  .muted{color:var(--muted);font-size:11.5px;line-height:1.4;}
+  button,label.btn{display:inline-block;font:inherit;cursor:pointer;border:1px solid var(--border);background:#fff;padding:5px 9px;border-radius:8px;margin:2px 2px 2px 0;}
+  button.on{outline:2px solid var(--accent);}
+  #nodes label{display:block;padding:2px 0;word-break:break-all;}
+  #info{margin:6px 0;}
+  input[type=file]{display:none;}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="panel">
+  <h1>Lilla Aspeboda – Hall</h1>
+  <div id="info" class="muted">Laddar modell…</div>
+  <button id="bWire">Trådmodell</button>
+  <button id="bEdges">Kanter</button>
+  <button id="bFit">Centrera</button>
+  <label class="btn">Öppna annan .dae<input type="file" id="file" accept=".dae"></label>
+  <div class="muted" style="margin-top:8px">Objekt (klicka för att visa/dölja):</div>
+  <div id="nodes"></div>
+  <div class="muted" style="margin-top:8px">Vänster musknapp: rotera · Höger: panorera · Hjul: zooma</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { ColladaLoader } from 'three/addons/loaders/ColladaLoader.js';
+
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf3f4f6);
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.05, 500);
+const controls = new OrbitControls(camera, renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888899, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(5,12,8); scene.add(sun);
+const grid = new THREE.GridHelper(20, 20, 0x999999, 0xcccccc); scene.add(grid);
+
+let model = null, edgeGroup = null, wire = false;
+const info = document.getElementById('info'), nodesEl = document.getElementById('nodes');
+
+function fit(){
+  if(!model) return;
+  const box = new THREE.Box3().setFromObject(model);
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  const r = Math.max(s.x,s.y,s.z);
+  camera.position.copy(c).add(new THREE.Vector3(r*0.9,r*0.8,r*1.3));
+  controls.target.copy(c); controls.update();
+  grid.position.y = box.min.y;
+}
+
+function load(url, name){
+  info.textContent = 'Laddar…';
+  new ColladaLoader().load(url, (collada) => {
+    if(model){ scene.remove(model); }
+    model = collada.scene;
+    model.traverse(o => {
+      if(o.isMesh){
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => { m.side = THREE.DoubleSide; });
+      }
+    });
+    scene.add(model);
+    edgeGroup = null; wire = false;
+    document.getElementById('bWire').classList.remove('on');
+    document.getElementById('bEdges').classList.remove('on');
+    const box = new THREE.Box3().setFromObject(model), s = box.getSize(new THREE.Vector3());
+    let meshes = 0; model.traverse(o => { if(o.isMesh) meshes++; });
+    info.innerHTML = `${name}<br>${meshes} meshar · ${s.x.toFixed(2)} × ${s.z.toFixed(2)} × ${s.y.toFixed(2)} m (B × D × H)`;
+    buildNodeList(); fit();
+  }, undefined, err => { info.textContent = 'Kunde inte läsa modellen: ' + (err.message||err); });
+}
+
+function buildNodeList(){
+  nodesEl.innerHTML = '';
+  const top = [];
+  const walk = o => { o.children.forEach(c => { if(c.name && !/^skp_camera/.test(c.name) && !c.isCamera) top.push(c); }); };
+  // Collect named objects up to two levels below the root
+  const root = model.children.length === 1 ? model.children[0] : model;
+  walk(root);
+  top.forEach(o => {
+    const l = document.createElement('label');
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = o.visible;
+    cb.onchange = () => { o.visible = cb.checked; };
+    l.append(cb, ' ' + o.name); nodesEl.appendChild(l);
+  });
+}
+
+document.getElementById('bWire').onclick = e => {
+  wire = !wire; e.target.classList.toggle('on', wire);
+  model?.traverse(o => { if(o.isMesh) (Array.isArray(o.material)?o.material:[o.material]).forEach(m => m.wireframe = wire); });
+};
+document.getElementById('bEdges').onclick = e => {
+  if(!model) return;
+  if(!edgeGroup){
+    edgeGroup = new THREE.Group();
+    model.updateMatrixWorld(true);
+    model.traverse(o => {
+      if(o.isMesh && o.geometry){
+        const l = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 30), new THREE.LineBasicMaterial({color:0x222222}));
+        l.applyMatrix4(o.matrixWorld); edgeGroup.add(l);
+      }
+    });
+    scene.add(edgeGroup);
+  } else { edgeGroup.visible = !edgeGroup.visible; }
+  e.target.classList.toggle('on', edgeGroup.visible);
+};
+document.getElementById('bFit').onclick = fit;
+document.getElementById('file').onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const url = URL.createObjectURL(f); load(url, f.name);
+};
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
+});
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+load('models/Lilla_Aspeboda_Hall.dae', 'Lilla_Aspeboda_Hall.dae');
+window.__ready = () => !!model;
+</script>
+</body>
+</html>
