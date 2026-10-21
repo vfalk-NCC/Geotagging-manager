@@ -63,6 +63,8 @@ label.opt { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
 label.opt input { margin-top: 4px; accent-color: var(--accent); }
 label.opt span { min-width: 0; }
 label.opt small { display: block; color: var(--muted); }
+#o-name { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); width: 14em; max-width: 100%; }
+#o-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #list { display: flex; flex-direction: column; gap: 12px; }
 .file { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
@@ -102,6 +104,8 @@ dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
     <label class="opt"><input type="checkbox" id="o-annots"><span>Kommentarer och markeringar<small>Länkar behålls</small></span></label>
     <label class="opt"><input type="checkbox" id="o-files"><span>Bifogade filer</span></label>
   </fieldset>
+
+  <label class="opt" for="o-name"><span>Skriv in i stället<small>Sätts som Producent och Skapat i. Lämna tomt för helt ren metadata.</small></span><input id="o-name" type="text" value="Victor" maxlength="80" autocomplete="off"></label>
 
   <section id="list" aria-live="polite"></section>
 
@@ -229,7 +233,7 @@ dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
   }
 
   async function handle(files) {
-    var opts = { annots: document.getElementById('o-annots').checked, files: document.getElementById('o-files').checked };
+    var opts = { annots: document.getElementById('o-annots').checked, files: document.getElementById('o-files').checked, name: document.getElementById('o-name').value.trim() };
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') continue;
@@ -242,6 +246,7 @@ dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
         var doc = await L.PDFDocument.load(buf, { updateMetadata: false });
         var before = inspect(doc);
         clean(doc, opts);
+        if (opts.name) { doc.setProducer(opts.name); doc.setCreator(opts.name); }
         var bytes = await doc.save({ useObjectStreams: false });
         // Läs tillbaka resultatet och kontrollera det.
         var check = await L.PDFDocument.load(bytes, { updateMetadata: false });
