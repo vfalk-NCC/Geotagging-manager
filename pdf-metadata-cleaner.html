@@ -1,0 +1,269 @@
+<title>PDF-rensaren</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: en smal arbetsyta. Släppyta överst, filrader med före/efter-rapport under. */
+:root {
+  --bg: #f4f5f3;
+  --surface: #ffffff;
+  --fg: #1c2321;
+  --muted: #5c6763;
+  --line: #d9ddda;
+  --accent: #1f6f5c;
+  --accent-fg: #ffffff;
+  --danger: #a33a2c;
+  --ok: #1f6f5c;
+  --chip: #e8ece9;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141917; --surface: #1c2220; --fg: #e6ebe8; --muted: #9aa6a1; --line: #2e3733;
+    --accent: #5cc4a8; --accent-fg: #0c1512; --danger: #ef8d7e; --ok: #5cc4a8; --chip: #28312e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141917; --surface: #1c2220; --fg: #e6ebe8; --muted: #9aa6a1; --line: #2e3733;
+  --accent: #5cc4a8; --accent-fg: #0c1512; --danger: #ef8d7e; --ok: #5cc4a8; --chip: #28312e;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.lead { color: var(--muted); margin: 6px 0 0; max-width: 62ch; }
+#drop {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  border: 1.5px dashed var(--line); border-radius: 10px; background: var(--surface);
+  padding: 36px 16px; cursor: pointer; transition: border-color .15s, background .15s;
+}
+#drop:hover, #drop.over, #drop:focus-visible { border-color: var(--accent); outline: none; }
+#drop.over { background: var(--chip); }
+#drop strong { font-weight: 600; }
+#drop small { color: var(--muted); }
+button, .btn {
+  font: inherit; font-weight: 500; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .5; cursor: default; }
+fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+legend { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 0 8px; }
+label.opt { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
+label.opt input { margin-top: 4px; accent-color: var(--accent); }
+label.opt span { min-width: 0; }
+label.opt small { display: block; color: var(--muted); }
+#list { display: flex; flex-direction: column; gap: 12px; }
+.file { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.name { font-weight: 600; overflow-wrap: anywhere; min-width: 0; flex: 1 1 200px; }
+.size { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.status { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--danger); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.col { min-width: 0; }
+.col h3 { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 13px; }
+dt { font-family: var(--font-mono); color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.none { color: var(--ok); font-size: 13px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.note { color: var(--muted); font-size: 13px; max-width: 70ch; }
+.note b { color: var(--fg); font-weight: 600; }
+</style>
+
+<main>
+  <header>
+    <h1>PDF-rensaren</h1>
+    <p class="lead">Ta bort författare, titel, programnamn, datum och dold XMP-data ur dina PDF-filer. Allt sker i webbläsaren och filerna laddas aldrig upp någonstans.</p>
+  </header>
+
+  <div id="drop" tabindex="0" role="button" aria-label="Välj eller släpp PDF-filer">
+    <strong>Släpp PDF-filer här</strong>
+    <small>eller klicka för att välja, flera filer går bra</small>
+    <input id="picker" type="file" accept="application/pdf,.pdf" multiple hidden>
+  </div>
+
+  <fieldset>
+    <legend>Vad ska tas bort</legend>
+    <label class="opt"><input type="checkbox" id="o-info" checked disabled><span>Dokumentinformation<small>Titel, författare, ämne, nyckelord, program, datum</small></span></label>
+    <label class="opt"><input type="checkbox" id="o-xmp" checked disabled><span>XMP-metadata och intern programdata<small>Även på sidor och i filens ID</small></span></label>
+    <label class="opt"><input type="checkbox" id="o-annots"><span>Kommentarer och markeringar<small>Länkar behålls</small></span></label>
+    <label class="opt"><input type="checkbox" id="o-files"><span>Bifogade filer</span></label>
+  </fieldset>
+
+  <section id="list" aria-live="polite"></section>
+
+  <p class="note"><b>Gott att veta:</b> Rensningen tar bort det som PDF-formatet lagrar som metadata. Texten, bilderna och typsnitten i själva sidorna lämnas orörda, så ett namn som står skrivet på en sida finns kvar. Lösenordsskyddade filer kan inte rensas.</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+(function () {
+  var L = window.PDFLib;
+  var drop = document.getElementById('drop');
+  var picker = document.getElementById('picker');
+  var list = document.getElementById('list');
+  var downloads = null;
+  if (window.claude && window.claude.use) {
+    window.claude.use('downloads').then(function (d) { downloads = d; refreshButtons(); }, function () {});
+  }
+
+  drop.addEventListener('click', function () { picker.click(); });
+  drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); picker.click(); } });
+  picker.addEventListener('change', function () { handle(picker.files); picker.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { handle(e.dataTransfer.files); });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function fmt(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' kB'; }
+
+  var LABELS = { Title: 'Titel', Author: 'Författare', Subject: 'Ämne', Keywords: 'Nyckelord', Creator: 'Skapat i', Producer: 'Producent', CreationDate: 'Skapad', ModDate: 'Ändrad', Trapped: 'Trapped' };
+
+  function valueText(v) {
+    if (!v) return '';
+    if (v.decodeText) return v.decodeText();
+    if (v.asString) return v.asString();
+    return String(v);
+  }
+
+  // Läser vilken metadata som finns i dokumentet.
+  function inspect(doc) {
+    var ctx = doc.context, N = L.PDFName, out = { info: [], xmp: false, pieceInfo: false, annots: 0, files: false, id: !!ctx.trailerInfo.ID };
+    var infoRef = ctx.trailerInfo.Info;
+    var info = infoRef ? ctx.lookup(infoRef) : null;
+    if (info && info.entries) {
+      info.entries().forEach(function (e) {
+        var k = e[0].decodeText ? e[0].decodeText() : String(e[0]).replace('/', '');
+        var v = valueText(ctx.lookup(e[1]));
+        if (v) out.info.push([LABELS[k] || k, v]);
+      });
+    }
+    var cat = doc.catalog;
+    out.xmp = !!cat.get(N.of('Metadata'));
+    out.pieceInfo = !!cat.get(N.of('PieceInfo'));
+    var names = cat.lookupMaybe(N.of('Names'), L.PDFDict);
+    out.files = !!(names && names.get(N.of('EmbeddedFiles')));
+    doc.getPages().forEach(function (p) {
+      if (p.node.get(N.of('Metadata'))) out.xmp = true;
+      if (p.node.get(N.of('PieceInfo'))) out.pieceInfo = true;
+      var a = p.node.lookupMaybe(N.of('Annots'), L.PDFArray);
+      if (a) {
+        for (var i = 0; i < a.size(); i++) {
+          var d = a.lookupMaybe(i, L.PDFDict);
+          var st = d && d.lookupMaybe(N.of('Subtype'), N);
+          if (!st || st.toString() !== '/Link') out.annots++;
+        }
+      }
+    });
+    return out;
+  }
+
+  function dropKey(dict, key) {
+    var N = L.PDFName, ctx = dict.context;
+    var ref = dict.get(N.of(key));
+    if (ref) {
+      if (ref instanceof L.PDFRef) ctx.delete(ref);
+      dict.delete(N.of(key));
+    }
+  }
+
+  function clean(doc, opts) {
+    var ctx = doc.context, N = L.PDFName;
+    var infoRef = ctx.trailerInfo.Info;
+    if (infoRef instanceof L.PDFRef) ctx.delete(infoRef);
+    ctx.trailerInfo.Info = undefined;
+    ctx.trailerInfo.ID = undefined;
+    dropKey(doc.catalog, 'Metadata');
+    dropKey(doc.catalog, 'PieceInfo');
+    if (opts.files) {
+      var names = doc.catalog.lookupMaybe(N.of('Names'), L.PDFDict);
+      if (names) dropKey(names, 'EmbeddedFiles');
+      dropKey(doc.catalog, 'AF');
+    }
+    doc.getPages().forEach(function (p) {
+      dropKey(p.node, 'Metadata');
+      dropKey(p.node, 'PieceInfo');
+      if (opts.annots) {
+        var a = p.node.lookupMaybe(N.of('Annots'), L.PDFArray);
+        if (a) {
+          var keep = [];
+          for (var i = 0; i < a.size(); i++) {
+            var d = a.lookupMaybe(i, L.PDFDict);
+            var st = d && d.lookupMaybe(N.of('Subtype'), N);
+            if (st && st.toString() === '/Link') keep.push(a.get(i));
+            else if (a.get(i) instanceof L.PDFRef) ctx.delete(a.get(i));
+          }
+          p.node.set(N.of('Annots'), ctx.obj(keep));
+        }
+      }
+    });
+  }
+
+  function report(r) {
+    var rows = r.info.map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
+    if (r.xmp) rows.push('<dt>XMP</dt><dd>finns</dd>');
+    if (r.pieceInfo) rows.push('<dt>Programdata</dt><dd>finns</dd>');
+    if (r.annots) rows.push('<dt>Kommentarer</dt><dd>' + r.annots + ' st</dd>');
+    if (r.files) rows.push('<dt>Bilagor</dt><dd>finns</dd>');
+    return rows.length ? '<dl>' + rows.join('') + '</dl>' : '<div class="none">Ingen metadata hittades</div>';
+  }
+
+  function outName(n) { return n.replace(/\.pdf$/i, '') + '-rensad.pdf'; }
+
+  function refreshButtons() {
+    document.querySelectorAll('button[data-save]').forEach(function (b) { b.hidden = !downloads; });
+    document.querySelectorAll('[data-nosave]').forEach(function (b) { b.hidden = !!downloads; });
+  }
+
+  async function handle(files) {
+    var opts = { annots: document.getElementById('o-annots').checked, files: document.getElementById('o-files').checked };
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') continue;
+      var card = document.createElement('article');
+      card.className = 'file';
+      card.innerHTML = '<div class="head"><div class="name">' + esc(f.name) + '<span class="size">' + fmt(f.size) + '</span></div><span class="status">Rensar…</span></div>';
+      list.prepend(card);
+      try {
+        var buf = await f.arrayBuffer();
+        var doc = await L.PDFDocument.load(buf, { updateMetadata: false });
+        var before = inspect(doc);
+        clean(doc, opts);
+        var bytes = await doc.save({ useObjectStreams: false });
+        // Läs tillbaka resultatet och kontrollera det.
+        var check = await L.PDFDocument.load(bytes, { updateMetadata: false });
+        var after = inspect(check);
+        var blob = new Blob([bytes], { type: 'application/pdf' });
+        card.innerHTML =
+          '<div class="head"><div class="name">' + esc(f.name) + '<span class="size">' + fmt(f.size) + ' → ' + fmt(bytes.length) + '</span></div><span class="status ok">Klar</span></div>' +
+          '<div class="cols"><div class="col"><h3>Före</h3>' + report(before) + '</div><div class="col"><h3>Efter</h3>' + report(after) + '</div></div>' +
+          '<div class="actions"><button class="primary" data-save>Spara ' + esc(outName(f.name)) + '</button><span class="note" data-nosave hidden>Det går inte att spara filer härifrån i den här vyn.</span><span class="note" data-msg></span></div>';
+        var btn = card.querySelector('[data-save]'), msg = card.querySelector('[data-msg]');
+        btn.addEventListener('click', async function () {
+          if (!downloads) return;
+          try { await downloads.save({ filename: outName(f.name), data: blob }); msg.textContent = 'Sparad.'; }
+          catch (e) { msg.textContent = (e && e.code === 'declined') ? 'Sparandet avbröts.' : 'Det gick inte att spara filen.'; }
+        });
+        refreshButtons();
+      } catch (e) {
+        var enc = /encrypt/i.test(String(e && e.message));
+        card.innerHTML = '<div class="head"><div class="name">' + esc(f.name) + '</div><span class="status err">Misslyckades</span></div><p class="note">' +
+          (enc ? 'Filen är lösenordsskyddad. Ta bort skyddet först och försök igen.' : 'Filen gick inte att läsa som PDF.') + '</p>';
+      }
+    }
+  }
+})();
+</script>
